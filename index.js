@@ -140,12 +140,11 @@ var PerformanceTest = function () {
 
       var promissesArray = [];
       this.testSnippets.forEach(function (_elem) {
-        var limit = 50;
         var count = 0;
         var testCode = code;
         testCode += _this.wrapSnippetWithPerformanceCode(_elem.label, _elem.snippet);
 
-        while (count++ < limit) {
+        while (count++ < _this.limit) {
           promissesArray.push(new Promise(function (_resolve, _reject) {
             var test = (0, _child_process.spawn)('node', ['-e', testCode]);
 

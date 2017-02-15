@@ -129,13 +129,12 @@ export default class PerformanceTest {
     let promissesArray = [];
     this.testSnippets
     .forEach((_elem) => {
-      let limit = 50;
       let count = 0;
       let testCode = code;
       testCode += this
         .wrapSnippetWithPerformanceCode(_elem.label, _elem.snippet);
 
-      while (count++ < limit) {
+      while (count++ < this.limit) {
         promissesArray.push(new Promise((_resolve, _reject) => {
           let test = spawn('node', [
             '-e', testCode

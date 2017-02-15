@@ -1,5 +1,11 @@
 # js-performance-test CHANGELOG.md
 
+## v1.0.3 (02-15-2017)
+
+Bugfixes:
+- removed hardcoded limit
+
+---
 ## v1.0.2 (02-15-2017)
 
 Bugfixes:
