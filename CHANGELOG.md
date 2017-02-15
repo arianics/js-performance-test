@@ -1,5 +1,11 @@
 # js-performance-test CHANGELOG.md
 
+## v1.0.1 (02-15-2017)
+
+Bugfixes:
+- removed unused npm modules
+
+---
 ## v1.0.0 (02-15-2017)
 
 Features:
