@@ -1,5 +1,11 @@
 # js-performance-test CHANGELOG.md
 
+## v1.0.2 (02-15-2017)
+
+Bugfixes:
+- fixed typo in readme
+
+---
 ## v1.0.1 (02-15-2017)
 
 Bugfixes:
