@@ -3,7 +3,7 @@
 An environment for comparing javascript code performance.
 
 
-*WARNING: Each test spawns a new node process. Choose the nemuber of test
+*WARNING: Each test spawns a new node process. Choose the number of test
 iterations carefully.*
 
 ## Installation
