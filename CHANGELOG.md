@@ -1,5 +1,11 @@
 # js-performance-test CHANGELOG.md
 
+## v1.1.0 (02-18-2017)
+
+Features:
+- changed the testing algorithm. JsPerformanceTest spawn only as many child-processes as the number of tests.
+
+---
 ## v1.0.3 (02-15-2017)
 
 Bugfixes:

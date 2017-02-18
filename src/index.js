@@ -2,25 +2,19 @@ import {spawn} from 'child_process';
 import randomString from 'randomString';
 import Table from 'cli-table';
 
-let functionStartRegex = /(^function.*\{)/mi;
-let functionEndRegex = /\}$/mi;
+let functionStartRegex = /(^function.*\{)/i;
+let functionEndRegex = /\}$/i;
 
 export default class PerformanceTest {
-  constructor(_testLimit, _debug) {
+  constructor(_debug) {
     this.debug = _debug || false;
-    this.limit = _testLimit || 1;
     this.preTestScripts = [];
     this.testSnippets = [];
     this.testResults = {};
     this.randomPrefix = 'a_' + randomString.generate('5');
-    this.varEnum = {
-      label: `${this.randomPrefix}_label`,
-      timeExp: `${this.randomPrefix}_timeExp`,
-      counter: `${this.randomPrefix}_counter`,
-      consoleTimeLabel: `${this.randomPrefix}`
-    };
-    this.resultsRegex = new RegExp(this.varEnum.consoleTimeLabel +
-      '\\:\\s*([0-9\.]*)ms');
+    this.resultsRegex = new RegExp(this.randomPrefix +
+      '::([0-9]*)::' + this.randomPrefix);
+    this.mostExec = 0;
   }
 
   static stripFunction(_func) {
@@ -33,11 +27,18 @@ export default class PerformanceTest {
       .replace(functionEndRegex, '');
   }
 
-  wrapSnippetWithPerformanceCode(_label, _code) {
+  wrapSnippetWithPerformanceCode(_label, _code, _preTest) {
     let code = `;
-      console.time("${this.varEnum.consoleTimeLabel}");
-      ${_code};
-      console.timeEnd("${this.varEnum.consoleTimeLabel}");
+      var expTime = Date.now() + 3000;
+      var count = 0;
+      while (Date.now() < expTime) {
+        (function () {
+          ${_preTest};
+          ${_code};
+        }());
+        count++;
+      }
+      console.log("${this.randomPrefix}::" + count + "::${this.randomPrefix}");
     ;`;
 
     return code;
@@ -78,108 +79,83 @@ export default class PerformanceTest {
     let test = this.testSnippets.find((_elem) => _elem.label === _label);
 
     if (test !== null) {
-      let duration = parseFloat(matches[1]);
-      if (typeof test.reults === 'undefined') {
-        test.results = {};
-      }
-      if (typeof test.results.execDurationList === 'undefined') {
-        test.results.execDurationList = [duration];
-      } else {
-        test.results.execDurationList.push(duration);
+      let execCount = parseInt(matches[1]);
+
+      test.execCount = execCount;
+      if (execCount > this.mostExec) {
+        this.mostExec = execCount;
       }
     }
   }
 
-  calculateResults() {
-    let fastestAverageTime = Number.MAX_SAFE_INTEGER;
-    this.testSnippets.forEach((_elem) => {
-      let sum = _elem.results.execDurationList
-        .reduce((_acc, _curr) => _acc + _curr, 0);
-      let average = sum / _elem.results.execDurationList.length;
-      _elem.results.totalTime = sum;
-      _elem.results.averageTime = average;
-      if (average < fastestAverageTime) {
-        fastestAverageTime = average;
-      }
-    });
-
-    this.testSnippets.forEach((_elem) => {
-      let percentage = (_elem.results.averageTime / fastestAverageTime)
-        .toFixed(2);
-      _elem.results.percentage = percentage;
-      if (_elem.results.averageTime === fastestAverageTime) {
-        _elem.results.result = 'fastest';
-      } else {
-        _elem.results.result = percentage + ' times slower';
-      }
-    });
-  }
-
-  getResults() {
-    return this.testSnippets;
-  }
-
   runTests() {
-    let code = '';
-    code = this.preTestScripts
+    let promisesArray = [];
+    let preTest = this.preTestScripts
     .reduce((_acc, _curr) => {
       return _acc + _curr + ';';
     }, ';');
 
-    let promissesArray = [];
     this.testSnippets
     .forEach((_elem) => {
-      let count = 0;
-      let testCode = code;
-      testCode += this
-        .wrapSnippetWithPerformanceCode(_elem.label, _elem.snippet);
+      let testCode = this
+        .wrapSnippetWithPerformanceCode(_elem.label, _elem.snippet, preTest);
 
-      while (count++ < this.limit) {
-        promissesArray.push(new Promise((_resolve, _reject) => {
-          let test = spawn('node', [
-            '-e', testCode
-          ]);
-
-          test.stdout.on('data', (data) => {
-            if (this.debug) {
-              console.log(`stdout: ${data}`);
-            }
-            this.recordResult(data.toString(), _elem.label);
-          });
-
-          test.stderr.on('data', (data) => {
-            if (this.debug) {
-              console.log(`stderr: ${data}`);
-            }
-          });
-
-          test.on('close', (code) => {
-            if (this.debug) {
-              console.log(`child process exited with code ${code}`);
-            }
-            if (code === 0) {
-              _resolve();
-            } else {
-              _reject();
-            }
-          });
-        }));
+      if (this.debug) {
+        console.log(_elem.label, '\n', testCode);
       }
+      promisesArray.push(new Promise((_resolve, _reject) => {
+        let test = spawn('node', [
+          '-e', testCode
+        ]);
+
+        test.stdout.on('data', (data) => {
+          if (this.debug) {
+            console.log(`stdout: ${data}`);
+          }
+          this.recordResult(data.toString(), _elem.label);
+        });
+
+        test.stderr.on('data', (data) => {
+          if (this.debug) {
+            console.log(`stderr: ${data}`);
+          }
+        });
+
+        test.on('close', (code) => {
+          if (this.debug) {
+            console.log(`child process exited with code ${code}`);
+          }
+          if (code === 0) {
+            _resolve();
+          } else {
+            _reject();
+          }
+        });
+      }));
     });
 
-    return Promise.all(promissesArray);
+    return Promise.all(promisesArray);
   }
 
   toString() {
     let table = new Table({
-      head: ['Label', 'Average exec time(ms)', 'Result']
+      head: ['Label', 'Exec count/3sec', 'Result']
     });
 
+    let parseResult = (_execCount) => {
+      if (_execCount === this.mostExec) {
+        return 'fastest';
+      }
+      return ((this.mostExec - _execCount) / this.mostExec * 100).toFixed(2) +
+        '% slower';
+    };
+
     this.testSnippets.forEach((_elem) => {
+      let res = parseResult(_elem.execCount);
       table.push([
          _elem.label,
-         _elem.results.averageTime,
-         _elem.results.result
+         _elem.execCount,
+         res
       ]);
     });
 
